@@ -167,14 +167,16 @@ function daniel_xbox_disable()
     previous, routes = {}, {}
 end
 
-function daniel_xbox_enable()
+function daniel_xbox_enable(silent)
     if enabled then return end
     -- Only claim the device/layout observed in Daniel's X-Plane log.
     if not valid_device or axes[0] < 0 or axes[2] < 0 or
        assignments[0] ~= 2 or assignments[1] ~= 1 or
        (assignments[4] ~= 74 and assignments[4] ~= 0) or
        (assignments[5] ~= 75 and assignments[5] ~= 0) then
-        logMsg('[Xbox Advanced] Not enabled: connect Xbox Bluetooth in original slot and retain native roll/pitch and split rudder axes.')
+        if not silent then
+            logMsg('[Xbox Advanced] Waiting for Xbox controller initialization...')
+        end
         return
     end
     -- X-Plane can save our cleared assignments while the script is active.
@@ -200,8 +202,18 @@ local function center_view()
     if external[0] == 0 then heading[0] = 0; pitch[0] = 0 end
 end
 
+local last_autoconnect_check = 0
+
 function daniel_xbox_frame()
-    if not enabled then return end
+    if not enabled then
+        -- Automatically retry connection every 0.5s once X-Plane finishes controller initialization
+        local now_t = runtime[0] or 0
+        if now_t - last_autoconnect_check >= 0.5 then
+            last_autoconnect_check = now_t
+            daniel_xbox_enable(true)
+        end
+        if not enabled then return end
+    end
     if paused[0] == 0 then
         -- This dataref is already an instrument deflection, not deg/sec.
         -- Reduce its visual gain and damp it independently of draw frequency.
